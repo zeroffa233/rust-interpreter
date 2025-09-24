@@ -10,6 +10,7 @@ pub struct Interpreter {
 }
 
 impl Interpreter {
+    // 初始化函数
     pub fn new() -> Self {
         Interpreter {
             text: String::new(),
@@ -23,6 +24,7 @@ impl Interpreter {
         panic!("Error parsing input: {}", message);
     }
 
+    // lexer 部分，只负责提供把字节流转为 token 的相关方法
     pub fn advance(&mut self) {
         self.pos += 1;
         if self.pos > self.text.len() {
@@ -78,6 +80,8 @@ impl Interpreter {
         self.error("Unexpected character");
     }
 
+    // parser/interpreter 部分，负责识别结构和按照结构进行结果的生成
+
     pub fn eat(&mut self, token_type: TokenType) {
         if let Some(ref current_token) = self.current_token {
             if current_token.token_type == token_type {
@@ -90,36 +94,33 @@ impl Interpreter {
         }
     }
 
+    // 主要变动 1：增加可以根据当前 token 返回数字并“吃掉”数字的函数
+    pub fn term(&mut self) -> i32 {
+        let token = self.current_token.clone().unwrap();
+        self.eat(TokenType::Integer);
+        return token.value.unwrap().parse::<i32>().unwrap();
+    }
+
+    // 主要变动 2：修改 expr 函数，先初始化第一个数字 Token，然后循环“吃掉”运算符和数字，更新结果。
     pub fn expr(&mut self, text: String) -> i32 {
         self.text = text;
         self.pos = 0;
         self.current_char = self.text.chars().nth(self.pos);
         self.current_token = Some(self.get_next_token());
 
-        let left = self.current_token.clone().unwrap();
-        self.eat(TokenType::Integer);
+        let mut result = self.term();
 
-        let op = self.current_token.clone().unwrap();
-        if op.token_type == TokenType::Plus {
-            self.eat(TokenType::Plus);
-        } else if op.token_type == TokenType::Minus {
-            self.eat(TokenType::Minus);
-        } else {
-            self.error("Unexpected operator");
-        }
-
-        let right = self.current_token.clone().unwrap();
-        self.eat(TokenType::Integer);
-
-        if let (Some(left_val), Some(right_val)) = (left.value, right.value) {
-            let left_int: i32 = left_val.parse().unwrap();
-            let right_int: i32 = right_val.parse().unwrap();
-            if op.token_type == TokenType::Minus {
-                return left_int - right_int;
+        while let Some(ref token) = self.current_token.clone() {
+            if token.token_type == TokenType::Plus {
+                self.eat(TokenType::Plus);
+                result += self.term();
+            } else if token.token_type == TokenType::Minus {
+                self.eat(TokenType::Minus);
+                result -= self.term();
             } else {
-                return left_int + right_int;
+                break;
             }
         }
-        self.error("Invalid expression");
+        result
     }
 }
